@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 import '../../components/header.dart';
 import '../../components/footer.dart';
 import '../../components/news_card.dart';
-import '../../components/resourceCard.dart';
-import 'package:http/http.dart' as http;
 
 class ResourceLanding extends StatefulWidget {
   @override
@@ -14,19 +13,15 @@ class ResourceLanding extends StatefulWidget {
 class _LandingPageState extends State<ResourceLanding> {
   int _selectedIndex = 0;
   List<dynamic> _news = [];
-  List<dynamic> _resources = [];
-  List<dynamic> _filteredItems = [];
+  List<dynamic> _filteredNews = [];
   TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
   bool _showRecommended = true;
-  bool _showResources = false;
-  bool _showNews = false;
 
   @override
   void initState() {
     super.initState();
     _loadNews();
-    _loadResources();
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -38,77 +33,23 @@ class _LandingPageState extends State<ResourceLanding> {
   }
 
   void _loadNews() async {
-    try {
-      final response =
-          await http.get(Uri.parse('http://192.168.0.104:5000/api/news/news'));
-      if (response.statusCode == 200) {
-        setState(() {
-          _news = json.decode(response.body);
-          _updateFilteredItems();
-        });
-      } else {
-        throw Exception('Failed to load news');
-      }
-    } catch (e) {
-      print('Error fetching news: $e');
-    }
-  }
-
-  void _loadResources() async {
-    try {
-      final response = await http
-          .get(Uri.parse('http://192.168.0.104:5000/api/resources/resources'));
-      if (response.statusCode == 200) {
-        setState(() {
-          _resources = json.decode(response.body);
-          _updateFilteredItems();
-        });
-      } else {
-        throw Exception('Failed to load resources');
-      }
-    } catch (e) {
-      print('Error fetching resources: $e');
-    }
-  }
-
-  void _updateFilteredItems() {
-    if (_showRecommended) {
-      _filteredItems = [
-        ..._news.where((news) => news['stared'] == true),
-        ..._resources.where((resource) => resource['stared'] == true)
-      ];
-    } else if (_showResources) {
-      _filteredItems = _resources;
-    } else if (_showNews) {
-      _filteredItems = _news;
-    }
+    final String response =
+        await rootBundle.loadString('lib/assets/data/news.json');
+    final data = await json.decode(response);
+    setState(() {
+      _news = data;
+      _filteredNews = _news;
+    });
   }
 
   void _onSearchChanged() {
     setState(() {
       _searchQuery = _searchController.text;
-      if (_showResources) {
-        _filteredItems = _resources
-            .where((resource) => resource['resourcesHeading']
-                .toLowerCase()
-                .contains(_searchQuery.toLowerCase()))
-            .toList();
-      } else if (_showNews) {
-        _filteredItems = _news
-            .where((news) => news['newsHeading']
-                .toLowerCase()
-                .contains(_searchQuery.toLowerCase()))
-            .toList();
-      } else {
-        _filteredItems = [
-          ..._news.where((news) => news['newsHeading']
-              .toLowerCase()
-              .contains(_searchQuery.toLowerCase())),
-          ..._resources.where((resource) => resource['resourcesHeading']
+      _filteredNews = _news
+          .where((news) => news['newsHeading']
               .toLowerCase()
               .contains(_searchQuery.toLowerCase()))
-        ];
-      }
+          .toList();
     });
   }
 
@@ -140,27 +81,14 @@ class _LandingPageState extends State<ResourceLanding> {
   void _showRecommendedCards() {
     setState(() {
       _showRecommended = true;
-      _showResources = false;
-      _showNews = false;
-      _updateFilteredItems();
+      _filteredNews = _news.where((news) => news['stared'] == true).toList();
     });
   }
 
   void _showAllResources() {
     setState(() {
       _showRecommended = false;
-      _showResources = true;
-      _showNews = false;
-      _updateFilteredItems();
-    });
-  }
-
-  void _showAllNews() {
-    setState(() {
-      _showRecommended = false;
-      _showResources = false;
-      _showNews = true;
-      _updateFilteredItems();
+      _filteredNews = _news;
     });
   }
 
@@ -279,7 +207,7 @@ class _LandingPageState extends State<ResourceLanding> {
                                   ),
                                 ),
                           const SizedBox(width: 8.9),
-                          _showResources
+                          !_showRecommended
                               ? ElevatedButton(
                                   onPressed: _showAllResources,
                                   style: ElevatedButton.styleFrom(
@@ -305,43 +233,29 @@ class _LandingPageState extends State<ResourceLanding> {
                                   ),
                                 ),
                           const SizedBox(width: 8.8),
-                          _showNews
-                              ? ElevatedButton(
-                                  onPressed: _showAllNews,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF49ABB0),
-                                    elevation: 2,
-                                    shadowColor: Colors.black,
-                                  ),
-                                  child: const Text(
-                                    "News",
-                                    style: TextStyle(color: Colors.black),
-                                  ),
-                                )
-                              : OutlinedButton(
-                                  onPressed: _showAllNews,
-                                  style: OutlinedButton.styleFrom(
-                                    side: BorderSide(
-                                        color: const Color(0xFF49ABB0)),
-                                  ),
-                                  child: const Text(
-                                    "News",
-                                    style: TextStyle(
-                                        color: const Color(0xFF49ABB0)),
-                                  ),
-                                ),
+                          OutlinedButton(
+                            onPressed: () {},
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: const Color(0xFF49ABB0)),
+                            ),
+                            child: const Text(
+                              "News",
+                              style: TextStyle(color: const Color(0xFF49ABB0)),
+                            ),
+                          ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 10),
-                    ..._filteredItems.map((item) {
-                      if (item.containsKey('newsId')) {
-                        return NewsCard(news: item);
-                      } else if (item.containsKey('resourcesId')) {
-                        return ResourceCard(resource: item);
-                      }
-                      return Container();
-                    }).toList(),
+                    if (_showRecommended)
+                      ..._filteredNews
+                          .where((news) => news['stared'] == true)
+                          .map((news) => NewsCard(news: news))
+                          .toList()
+                    else
+                      ..._filteredNews
+                          .map((news) => NewsCard(news: news))
+                          .toList(),
                   ],
                 ),
               ),
